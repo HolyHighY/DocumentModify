@@ -1,0 +1,5 @@
+# 本机验证记录、真实材料和报告产物；不得加入版本控制。
+/.local/
+/report-work/
+__pycache__/
+*.py[cod]

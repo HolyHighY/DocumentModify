@@ -6,6 +6,8 @@
 
 系统、Python、WPS、字体、加密策略或读写工具变化时，重新验证受影响项目。可复用仍有效的证据，但要检查条件是否相同。
 
+**本机已经通过核验时**：先读取 `.local/environments/<环境ID>/LOCAL-WORKFLOW.md`、核验结果摘要及相关问题记录，确认适用条件和本次所需能力。满足条件即按本机规程写作，不重新跑全套核验；新增能力或条件变化仅补验相关项目。具体写作流程见 [START.md](../START.md)。
+
 规则如下：
 
 1. 验证使用合成样例和允许使用的文档副本，禁止覆盖原件、绕过加密或将材料送往外网。
@@ -17,16 +19,36 @@
 
 ## 2. Q0：建立工作区与确认边界
 
-按本机实际路径新建独立项目工作区，例如：
+采用仓库内已忽略的 `.local/` 收拢本机工作区。环境记录跨报告复用，项目材料各自独立，例如：
 
 ```text
-report-work/
-  incoming/             # 原始交接包，验收前不改动
-  originals/            # 原件，只读保留
-  qualification/        # 合成样例、副本、日志与验证结果
-  work/                 # 分章节草稿、中间文档和状态
-  figures/              # 数据图、示意图及源文件
-  delivery/             # 经复核的交付版本
+DocumentModify_main/
+  docs/                         # 通用规范
+  tools/                        # 通用工具
+  .local/
+    environments/office-pc/
+      LOCAL-WORKFLOW.md         # 已验证操作方法
+      ISSUES.md                 # 环境问题与解决记录
+      scripts/                  # 已验证的本机脚本
+      qualification/RESULTS.md  # 核验记录，夹具与日志放同目录
+    projects/report-001/
+      TASK.md                   # 引用本机环境及规程版本
+      incoming/                 # 原始交接包，不改动
+      originals/                # 原件，只读保留
+      work/                     # 分章节草稿、模板约定与状态
+      figures/                  # 图表与源文件
+      delivery/                 # 经复核的交付版本
+```
+
+已有并列 `report-work` 时，按 [归并说明](../START.md#已有-report-work-的归并) 复制、核对和更新路径，不覆盖既有证据。本规范不保存本机测试日志；日志和问题进入环境目录，报告专属问题进入项目状态。
+
+以下 Windows 命令从 `DocumentModify_main`（或实际仓库根目录）执行，先设置路径变量。替换环境和项目 ID 后创建所需目录，已有文件不会被覆盖：
+
+```powershell
+$Repo = (Get-Location).Path
+$EnvRoot = Join-Path $Repo '.local\environments\office-pc'
+$ProjectRoot = Join-Path $Repo '.local\projects\report-001'
+New-Item -ItemType Directory -Force -Path "$EnvRoot\qualification", "$EnvRoot\scripts", "$ProjectRoot\incoming", "$ProjectRoot\originals", "$ProjectRoot\work", "$ProjectRoot\figures", "$ProjectRoot\delivery" | Out-Null
 ```
 
 记录允许读取的目录、输出位置、软件自动化权限、加密文档复制/另存规则和资料流向。默认不允许向外网传递内网文件、摘录、日志和截图。本机权限不足时请求具体操作权限，不要求关闭加密或安全系统。
@@ -48,7 +70,7 @@ py -3 --version
 确认一个可用入口后，以下统一以 `python` 表示。进入携带的规范目录执行：
 
 ```powershell
-python tools/document_check.py probe --output "D:\report-work\qualification\environment.json"
+python tools/document_check.py probe --output "$EnvRoot\qualification\environment.json"
 ```
 
 该探测只记录平台、Python 和常见模块存在性，不读取环境变量或凭据，不导入 WPS、打开文档或确认 COM 可用性。另记录 WPS 的版本、位数、已安装字体、PDF 导出能力、是否有 GUI，以及终端加密软件是否要求特定应用打开文件。不要导出完整注册表或系统环境。
@@ -83,7 +105,7 @@ python -m pip install --no-index --find-links "D:\offline-wheels" pywin32
 2. 若包含摘要清单，使用本规范随附工具验证：
 
 ```powershell
-python tools/document_check.py verify --root "D:\report-work\incoming\writing-package" --manifest "D:\report-work\incoming\writing-package\MANIFEST.json"
+python tools/document_check.py verify --root "$ProjectRoot\incoming\writing-package" --manifest "$ProjectRoot\incoming\writing-package\MANIFEST.json"
 ```
 
 退出码非零时停止使用该包，定位缺失、多余或不一致文件并重新接入。没有摘要时登记“未取得交接前摘要”，可建立本地基线，但不能声称已证明传输前后一致。
@@ -92,7 +114,7 @@ python tools/document_check.py verify --root "D:\report-work\incoming\writing-pa
 4. 验证模板和代表性文档的可读路线。对允许分析的工作副本执行：
 
 ```powershell
-python tools/document_check.py inspect-docx --input "D:\report-work\qualification\sample.docx" --output "D:\report-work\qualification\sample-structure.json"
+python tools/document_check.py inspect-docx --input "$EnvRoot\qualification\sample.docx" --output "$EnvRoot\qualification\sample-structure.json"
 ```
 
 退出码 `0` 只表示普通 DOCX 基本结构可解析。`2` 表示无法按普通 DOCX 确认，例如非 ZIP、加密容器、缺少主文档或 XML 无效；不能仅凭该结果断言具体加密机制。`.doc` 不适用此检查。文件操作错误使用退出码 `1`。
@@ -105,7 +127,7 @@ python tools/document_check.py inspect-docx --input "D:\report-work\qualificatio
 
 ### 5.1 先制作覆盖格式的合成夹具
 
-由操作者在目标 WPS 中创建测试文档，保存到 `qualification`。必须包含：
+由操作者在目标 WPS 中创建测试文档，保存到环境的 `qualification/`。必须包含：
 
 - 唯一正文标记 `DM_BODY_BASELINE_01`、中文、标题一级和二级、粗体/斜体；
 - 2 行 2 列表格，单元格标记 `DM_TABLE_01`；
@@ -127,7 +149,7 @@ python tools/document_check.py inspect-docx --input "D:\report-work\qualificatio
 
 ### 5.3 普通 DOCX 最小读写测试
 
-仅在 Python 可直接解析普通夹具时执行。将以下代码保存为工作区的 `qualification/test_plain.py`，它拒绝覆盖已有输出：
+仅在 Python 可直接解析普通夹具时执行。将以下代码保存为环境目录的 `qualification/test_plain.py`，它拒绝覆盖已有输出：
 
 ```python
 import sys
@@ -152,7 +174,7 @@ print("PASS: basic text/table/inline-image round trip; visual checks pending")
 ```
 
 ```powershell
-python "D:\report-work\qualification\test_plain.py" "D:\report-work\qualification\plain-fixture.docx" "D:\report-work\qualification\plain-result.docx"
+python "$EnvRoot\qualification\test_plain.py" "$EnvRoot\qualification\plain-fixture.docx" "$EnvRoot\qualification\plain-result.docx"
 ```
 
 该测试只覆盖基本对象，不证明复杂对象和版面正确。继续 Q6。在真实模板副本上做代表性替换、表格更新和插图后重复检查。
@@ -167,7 +189,7 @@ Get-ItemProperty -LiteralPath 'Registry::HKEY_CLASSES_ROOT\KWPS.Application\CLSI
 
 这是候选标识，不保证所有 WPS 版本均注册。未发现时查本机 WPS 帮助或已批准的接口文档，不能通过禁用安全策略解决。接口对象、打开参数和保存方法必须以本机支持情况为准。
 
-如果确认该版本支持 `DispatchEx` 和下列对象方法，可将代码保存为 `qualification/test_wps.py`。**传入的只能是事先准备好的测试工作副本，代码会修改该副本**；测试前关闭该副本，保留基线。先确认实例创建机制不会接管操作者正在编辑的文档。
+如果确认该版本支持 `DispatchEx` 和下列对象方法，可将代码保存为环境目录的 `qualification/test_wps.py`。**传入的只能是事先准备好的测试工作副本，代码会修改该副本**；测试前关闭该副本，保留基线。先确认实例创建机制不会接管操作者正在编辑的文档。
 
 ```python
 import sys
@@ -203,7 +225,7 @@ finally:
 ```
 
 ```powershell
-python "D:\report-work\qualification\test_wps.py" "KWPS.Application" "D:\report-work\qualification\protected-working-copy.docx"
+python "$EnvRoot\qualification\test_wps.py" "KWPS.Application" "$EnvRoot\qualification\protected-working-copy.docx"
 ```
 
 该片段是待本机验证的接口候选，不是已保证兼容的实现。接口异常、授权弹窗或超时均记录为失败或阻塞，不关掉提示假装成功。若创建了测试实例但脚本异常退出，人工仅关闭自己创建的测试窗口，不结束所有 WPS 进程。
@@ -250,7 +272,7 @@ AI 若能在内网读取允许的页面渲染结果，可辅助逐页核对；�
 
 ## 9. Q7：固化本机操作规程并做最终演练
 
-使用 [表单中的内网验证记录](05-templates.md#内网资格验证记录与本机规程)，在内网项目目录创建 `qualification/RESULTS.md` 和 `work/LOCAL-WORKFLOW.md`，不要把内网记录提交到外网仓库。
+使用 [表单中的内网验证记录](05-templates.md#内网资格验证记录与本机规程)，在环境目录创建 `qualification/RESULTS.md`、`LOCAL-WORKFLOW.md` 和 `ISSUES.md`。它们分别保存证据、有效方法和问题经历，不写回本通用规范，不提交到外网仓库。项目 `TASK.md` 引用环境 ID、规程版本及证据 ID，项目专属模板要求和写作问题保留在项目内。
 
 `LOCAL-WORKFLOW.md` 必须填写实测得到的内容：
 
@@ -260,6 +282,8 @@ AI 若能在内网读取允许的页面渲染结果，可辅助逐页核对；�
 - 保存、重开、目录更新、PDF 导出和逐页验收步骤；
 - 失败恢复、版本保留、人工步骤、已知不支持对象和回退方法。
 
+规程标明版本和适用条件，并指向 `RESULTS.md` 的证据。将可复用脚本放在环境的 `scripts/`，不要只把有效代码留在聊天中。`ISSUES.md` 记录现象、原因或待查项、修正方法、复验结果和适用版本；仅复验通过的方法进入有效规程。
+
 按该规程从一份新夹具副本重新演练：接入 → 分章恢复 → 分析 → 模板写入 → 保存重开 → 排版检查。仅重跑本次实际需要的路线。删除或注明未验证的候选方法，保留失败证据及限制。
 
 最终按能力分别报告：材料接入、分章写作、Python/WPS 读写、分析、排版与交付。必要项目全通过才可声明“本机流程已验证”；阻塞或未运行项目存在时，只声明已证实的能力。
@@ -267,3 +291,5 @@ AI 若能在内网读取允许的页面渲染结果，可辅助逐页核对；�
 ## 10. 正式任务的后续流程
 
 在适用条件未变且验证记录有效时，使用本机规程接入真实材料、分章撰写、合稿和验收。每份报告仍执行事实、模板、保存重开和版面检查。资格验证通过不能代替每份报告自身的质量验收。
+
+接入外网资料包后，先在项目内解析真实模板，建立 `work/template-contract.md`、`work/content-map.md` 和最终大纲。外网未见模板时提供的模块和建议结构需要重新适配，不直接当作最终章名。具体映射与启动指令见 [START.md](../START.md)。
